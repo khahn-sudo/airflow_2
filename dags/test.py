@@ -1,7 +1,7 @@
 from airflow import DAG
 import datetime
 import pendulum
-from airflow.operators.empty import EmptyOperator
+from airflow.operators.empty import BashOperator
 
 with DAG(
     dag_id="test",
@@ -12,12 +12,12 @@ with DAG(
     tags=["session2", "init_test"],
     # params={"example_key": "example_value"},
 ) as dag:
-    test_1 = EmptyOperator(
+    test_1 = BashOperator(
         task_id="test_1",
         bash_command="echo test 1"
     )
 
-    test_2 = EmptyOperator(
+    test_2 = BashOperator(
         task_id="test_2",
         bash_command="echo $HOSTNAME"
     )
