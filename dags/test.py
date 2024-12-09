@@ -1,7 +1,7 @@
 from airflow import DAG
 import datetime
 import pendulum
-from airflow.operators.empty import BashOperator
+from airflow.operators.bash import BashOperator  # 수정된 부분
 
 with DAG(
     dag_id="test",
