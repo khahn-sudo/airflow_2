@@ -15,7 +15,7 @@ with DAG(
     test_1 = EmptyOperator(
         task_id="test_1",
         bash_command="echo test 1"
-    ),
+    )
 
     test_2 = EmptyOperator(
         task_id="test_2",
