@@ -40,7 +40,7 @@ def upload_to_gcs(bucket_name, csv_data, dst_file):
 
 # Airflow Variables에서 설정 가져오기
 api_key = Variable.get("kosis_api_key")  # KOSIS API Key 가져오기
-bucket_name = Variable.get("gcs_bucket_name")  # GCS 버킷 이름 가져오기
+bucket_name = Variable.get("gcs_bucket_csv")  # GCS 버킷 이름 가져오기
 
 # DAG 정의
 with DAG(
