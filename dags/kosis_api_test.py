@@ -1,13 +1,14 @@
 import requests
 import csv
-import os
+import io  # 메모리 파일 처리
 from airflow import DAG
 import pendulum
 from airflow.operators.python import PythonOperator
-from datetime import datetime
+from airflow.models import Variable
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
 
 # JSON 데이터를 CSV로 변환하는 함수
-def json_to_csv(json_url, output_file):
+def json_to_csv(json_url):
     # 주어진 URL에서 JSON 데이터를 가져옴
     response = requests.get(json_url)
     response.raise_for_status()  # 요청 실패 시 예외 발생
@@ -19,60 +20,55 @@ def json_to_csv(json_url, output_file):
     else:
         raise ValueError("Unexpected JSON structure")  # 데이터 구조가 예상과 다르면 예외 발생
 
-    # CSV 파일로 저장
-    with open(output_file, mode='w', newline='', encoding='utf-8') as csv_file:
-        csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(headers)  # 헤더 작성
-        for item in data:
-            csv_writer.writerow(item.values())  # 각 데이터 행 작성
+    # 메모리에서 CSV 데이터를 처리할 수 있는 StringIO 객체 생성
+    output_csv = io.StringIO()
+    csv_writer = csv.writer(output_csv)
+    csv_writer.writerow(headers)  # 헤더 작성
+    for item in data:
+        csv_writer.writerow(item.values())  # 각 데이터 행 작성
 
-# Google Cloud Storage에 파일 업로드 함수
-def upload_to_gcs(bucket_name, src_file, dst_file):
-    from google.cloud import storage  # GCS 클라이언트 라이브러리
+    output_csv.seek(0)  # StringIO의 포인터를 처음으로 이동
 
-    # GCS 클라이언트 초기화
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)  # 버킷 가져오기
-    blob = bucket.blob(dst_file)  # 업로드할 객체(blob) 생성
+    return output_csv.getvalue()  # CSV 데이터를 문자열로 반환
 
-    # 로컬 파일을 GCS에 업로드
-    blob.upload_from_filename(src_file)
-    print(f"Uploaded {src_file} to gs://{bucket_name}/{dst_file}")
+# GCS에 파일 업로드하는 함수
+def upload_to_gcs(bucket_name, csv_data, dst_file):
+    # GCSHook을 사용하여 Google Cloud Storage에 파일 업로드
+    hook = GCSHook(gcp_conn_id="google_cloud_default")  # Conn Id가 google_cloud_default로 설정되어 있으면 그대로 사용
+    hook.upload(bucket_name, dst_file, csv_data, mime_type='text/csv')  # 메모리에서 바로 GCS로 업로드
+    print(f"Uploaded to gs://{bucket_name}/{dst_file}")
+
+# Airflow Variables에서 설정 가져오기
+api_key = Variable.get("kosis_api_key")  # KOSIS API Key 가져오기
+bucket_name = Variable.get("gcs_bucket_name")  # GCS 버킷 이름 가져오기
 
 # DAG 정의
 with DAG(
-    dag_id="test",
-    schedule="0 0 * * *",
+    dag_id="kosis_api_test",
+    schedule="0 0 * * *",  # 매일 0시에 실행
     start_date=pendulum.datetime(2024, 12, 8, tz="UTC"),
-    catchup=True,
-    # dagrun_timeout=datetime.timedelta(minutes=60),
+    catchup=False,
     tags=["session2", "init_test"],
-    # params={"example_key": "example_value"},
 ) as dag:
 
     # JSON 데이터 URL
-    json_url = 'https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&apiKey=NmZhMWQ1MjQ0MDIxZGQ1OGJjYTZkYWFhODhkMmJjOWI=&itmId=13103112873NO_ACCI+13103112873NO_DEATH+13103112873NO_WOUND+&objL1=ALL&objL2=ALL&objL3=&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y&prdSe=Y&startPrdDe=2016&endPrdDe=2023&orgId=132&tblId=DT_V_MOTA_021'
+    json_url = 'https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&apiKey=NmZhMWQ1MjQ0MDIxZGQ1OGJjYTZkYWFhODhkMmJjOWI=&itmId=13103112873NO_ACCI+13103112873NO_DEATH+13103112873NO_WOUND+&objL1=ALL&objL2=ALL&objL3=&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y&prdSe=Y&startPrdDe=2017&endPrdDe=2023&orgId=132&tblId=DT_V_MOTA_021'
     
-    # 변환된 CSV 파일 경로
-    output_file = os.path.join('/tmp', 'output.csv')  # 로컬 파일 저장 경로
-    
-    # GCS 버킷 및 업로드 대상 파일 경로
-    bucket_name = 'kosis_api_test'  # GCS 버킷 이름
-    dst_file = 'output.csv'  # GCS에 저장할 파일 이름
+    # GCS에 저장할 파일 이름
+    dst_file = 'output.csv'
 
-    # JSON 데이터를 CSV로 변환하는 작업(Task)
+    # JSON -> CSV 변환 Task
     convert_json_to_csv = PythonOperator(
-        task_id='convert_json_to_csv',  # 작업 ID
-        python_callable=json_to_csv,  # 실행할 Python 함수
-        op_args=[json_url, output_file],  # 함수에 전달할 인수
+        task_id='convert_json_to_csv',
+        python_callable=json_to_csv,
+        op_args=[json_url],
     )
 
-    # 변환된 CSV 파일을 GCS에 업로드하는 작업(Task)
+    # GCS에 업로드 Task
     upload_to_gcs_task = PythonOperator(
-        task_id='upload_to_gcs',  # 작업 ID
-        python_callable=upload_to_gcs,  # 실행할 Python 함수
-        op_args=[bucket_name, output_file, dst_file],  # 함수에 전달할 인수
+        task_id='upload_to_gcs',
+        python_callable=upload_to_gcs,
+        op_args=[bucket_name, "{{ task_instance.xcom_pull(task_ids='convert_json_to_csv') }}", dst_file],
     )
 
-    # 작업 순서 정의: CSV 변환 후 GCS 업로드
     convert_json_to_csv >> upload_to_gcs_task
