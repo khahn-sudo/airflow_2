@@ -6,6 +6,7 @@ import pendulum
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
+from datetime import datetime
 
 # JSON 데이터를 CSV로 변환하는 함수
 def json_to_csv(json_url):
@@ -39,6 +40,7 @@ def upload_to_gcs(bucket_name, csv_data, dst_file):
     # 문자열을 바이트로 변환하여 GCS로 업로드
     csv_data_bytes = csv_data.encode('utf-8')  # 문자열을 UTF-8로 인코딩하여 바이트로 변환
     
+    # GCS에 업로드
     hook.upload(bucket_name, dst_file, csv_data_bytes, mime_type='text/csv')  # 메모리에서 바로 GCS로 업로드
     print(f"Uploaded to gs://{bucket_name}/{dst_file}")
 
@@ -58,8 +60,9 @@ with DAG(
     # JSON 데이터 URL
     json_url = 'https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&apiKey=NmZhMWQ1MjQ0MDIxZGQ1OGJjYTZkYWFhODhkMmJjOWI=&itmId=13103112873NO_ACCI+13103112873NO_DEATH+13103112873NO_WOUND+&objL1=ALL&objL2=ALL&objL3=&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y&prdSe=Y&startPrdDe=2017&endPrdDe=2023&orgId=132&tblId=DT_V_MOTA_021'
     
-    # GCS에 저장할 파일 이름
-    dst_file = 'output.csv'
+    # GCS에 저장할 파일 이름 (타임스탬프 추가)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    dst_file = f'output_{timestamp}.csv'
 
     # JSON -> CSV 변환 Task
     convert_json_to_csv = PythonOperator(
