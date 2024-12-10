@@ -2,6 +2,7 @@ import requests
 import csv
 import os
 from airflow import DAG
+import pendulum
 from airflow.operators.python import PythonOperator
 from datetime import datetime
 
@@ -40,14 +41,13 @@ def upload_to_gcs(bucket_name, src_file, dst_file):
 
 # DAG 정의
 with DAG(
-    'json_to_csv_to_gcs_dag',  # DAG 이름
-    default_args={
-        'owner': 'airflow',  # 소유자 정보
-        'start_date': datetime(2024, 12, 9),  # 시작 날짜 (과거 날짜로 설정)
-        'retries': 1,  # 실패 시 재시도 횟수
-    },
-    description='Convert JSON to CSV and upload to GCS using PythonOperator',  # DAG 설명
-    schedule_interval=None,  # 실행 간격 (None이면 수동 실행)
+    dag_id="test",
+    schedule="0 0 * * *",
+    start_date=pendulum.datetime(2024, 12, 8, tz="UTC"),
+    catchup=True,
+    # dagrun_timeout=datetime.timedelta(minutes=60),
+    tags=["session2", "init_test"],
+    # params={"example_key": "example_value"},
 ) as dag:
 
     # JSON 데이터 URL
