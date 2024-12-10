@@ -4,7 +4,6 @@ from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from datetime import datetime
 import requests
 import csv
-import io
 from airflow.models import Variable
 
 # JSON 데이터를 API에서 가져오는 함수
@@ -29,29 +28,40 @@ def json_to_csv_and_upload(**kwargs):
 
     # GCS 버킷 이름 및 파일 경로
     bucket_name = Variable.get("gcs_bucket_csv")  # GCS 버킷 이름
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    gcs_file_path = f'output_{timestamp}.csv'  # 타임스탬프를 파일명에 추가
+    gcs_file_path = 'kosis_data.csv'
+    local_file_path = '/tmp/kosis_data.csv'
+    
 
     # JSON 데이터를 CSV로 변환
-    output_csv = io.StringIO()
-    csv_writer = csv.writer(output_csv)
+    with open(local_file_path, mode='w', newline='', encoding='utf-8-sig') as csv_file:
+        csv_writer = csv.writer(csv_file)
 
-    headers = list(json_data[0].keys())  # JSON 키를 CSV 헤더로 사용
-    csv_writer.writerow(headers)  # 헤더 쓰기
+        # JSON 데이터를 변환할 예시
+        headers = list(json_data[0].keys())  # JSON 키를 CSV 헤더로 사용
+        csv_writer.writerow(headers)  # 헤더 쓰기
 
-    for item in json_data:
-        csv_writer.writerow(item.values())  # 값 쓰기
-
-    output_csv.seek(0)  # StringIO의 포인터를 처음으로 이동
+        for item in json_data:
+            csv_writer.writerow(item.values())  # 값 쓰기
 
     # GCS에 업로드
     hook = GCSHook(gcp_conn_id='google_cloud_default')
-    hook.upload(bucket_name, gcs_file_path, output_csv.getvalue().encode('utf-8'), mime_type='text/csv')
+    hook.upload(bucket_name, gcs_file_path, local_file_path)
     print(f"File uploaded to GCS: gs://{bucket_name}/{gcs_file_path}")
+
+
+# 기본 DAG 설정
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1
+}
 
 # DAG 정의
 with DAG(
     'kosis_api_test',  # DAG 이름
+    default_args=default_args,
     description='Fetch JSON data, convert to CSV, and upload to GCS',
     schedule_interval='0 0 * * *',  # 매일 0시에 실행
     start_date=datetime(2024, 12, 8),
@@ -63,14 +73,14 @@ with DAG(
     fetch_json_task = PythonOperator(
         task_id='fetch_json_data',
         python_callable=fetch_json_data,
-        provide_context=True,  # context 전달
+        provide_context=True,
     )
-
+    
     # JSON 데이터를 CSV로 변환하고 GCS에 업로드
     json_to_csv_task = PythonOperator(
         task_id='json_to_csv_and_upload',
         python_callable=json_to_csv_and_upload,
-        provide_context=True,  # context 전달
+        provide_context=True,
     )
 
     # 태스크 순서 정의
