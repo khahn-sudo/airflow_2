@@ -35,7 +35,11 @@ def json_to_csv(json_url):
 def upload_to_gcs(bucket_name, csv_data, dst_file):
     # GCSHook을 사용하여 Google Cloud Storage에 파일 업로드
     hook = GCSHook(gcp_conn_id="google_cloud_default")  # Conn Id가 google_cloud_default로 설정되어 있으면 그대로 사용
-    hook.upload(bucket_name, dst_file, csv_data, mime_type='text/csv')  # 메모리에서 바로 GCS로 업로드
+    
+    # 문자열을 바이트로 변환하여 GCS로 업로드
+    csv_data_bytes = csv_data.encode('utf-8')  # 문자열을 UTF-8로 인코딩하여 바이트로 변환
+    
+    hook.upload(bucket_name, dst_file, csv_data_bytes, mime_type='text/csv')  # 메모리에서 바로 GCS로 업로드
     print(f"Uploaded to gs://{bucket_name}/{dst_file}")
 
 # Airflow Variables에서 설정 가져오기
