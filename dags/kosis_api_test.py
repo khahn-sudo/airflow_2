@@ -35,7 +35,7 @@ def json_to_csv_and_upload(**kwargs):
     local_file_path = '/tmp/kosis_data.csv'
     
     # 서비스 계정 키 파일 경로
-    service_account_file = '/path/to/your-service-account-file.json'  # 서비스 계정 파일 경로 지정
+    service_account_file = '/opt/airflow/dags/airflow-onboarding-e866ef7ec234.json'  # 서비스 계정 파일 경로 지정
     scopes = [
         'https://www.googleapis.com/auth/cloud-platform',  # Cloud API 접근 권한
     ]
