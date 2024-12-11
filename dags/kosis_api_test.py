@@ -3,6 +3,8 @@ from airflow.operators.python import PythonOperator
 from google.cloud import storage
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
+from airflow.providers.google.cloud.operators.bigquery import BigQueryExecuteQueryOperator
+
 from datetime import datetime, timedelta
 import requests
 import csv
@@ -93,7 +95,8 @@ with DAG(
                 "destinationTable": {
                     "projectId": Variable.get("gcp_project_id"),
                     "datasetId": Variable.get("bigquery_dataset_id"),
-                    "tableId": Variable.get("bigquery_table_id"),
+                    "tableId": Variable.get("bigquery_table_id_1"),
+                    "tableId": Variable.get("bigquery_table_id_2"),
                 },
                 "sourceFormat": "CSV",
                 "skipLeadingRows": 1,  # 헤더 제외
@@ -106,5 +109,62 @@ with DAG(
         gcp_conn_id='google_cloud_default',
     )
 
+    gcs_to_bigquery_task_2 =  BigQueryExecuteQueryOperator(
+        task_id='execute_sql_query',
+        sql="""
+        -- 2019부터 2023년까지 사고 건수 쿼리 결과를 새로운 테이블에 삽입
+        CREATE TABLE `{{ var.value.gcp_project_id }}.{{ var.value.bigquery_dataset_id }}.{{ var.value.bigquery_dataset_id_2 }} AS 
+        WITH total_accidents AS (
+            SELECT 
+                PRD_DE, 
+                C2_NM, 
+                SUM(DT) AS total_accidents
+            FROM 
+                `{{ var.value.gcp_project_id }}.{{ var.value.bigquery_dataset_id }}.kosis_data_defore`
+            WHERE 
+                PRD_DE BETWEEN 2019 AND 2023
+                AND C2_NM = '전체'
+                AND ITM_NM = '사고건수'
+            GROUP BY 
+                PRD_DE, C2_NM
+        ),
+        elderly_accidents AS (
+            SELECT 
+                PRD_DE, 
+                C2_NM, 
+                SUM(DT) AS total_accidents
+            FROM 
+                `{{ var.value.gcp_project_id }}.{{ var.value.bigquery_dataset_id }}.kosis_data_defore`
+            WHERE 
+                PRD_DE BETWEEN 2019 AND 2023
+                AND C2_NM = '전체'
+                AND C1_NM IN ('65-70세', '71세이상')
+                AND ITM_NM = '사고건수'
+            GROUP BY 
+                PRD_DE, C2_NM
+        )
+        SELECT 
+            all_accidents.PRD_DE AS year,
+            all_accidents.C2_NM AS month,
+            all_accidents.total_accidents AS total_accidents,  -- 전체 사고 건수
+            elderly_accidents.total_accidents AS elderly_accidents, -- 고령자 사고 건수
+            ROUND(
+                (elderly_accidents.total_accidents / all_accidents.total_accidents) * 100, 
+                2
+            ) AS elderly_accidents_percentage -- 고령자 사고 비율 (반올림)
+        FROM 
+            total_accidents all_accidents
+        LEFT JOIN 
+            elderly_accidents
+        ON 
+            all_accidents.PRD_DE = elderly_accidents.PRD_DE
+            AND all_accidents.C2_NM = elderly_accidents.C2_NM
+        ORDER BY 
+            year, month; -- 연도와 월 기준 정렬
+        """,
+        use_legacy_sql=False,
+        gcp_conn_id='google_cloud_default',  # 구글 클라우드 연결 ID
+    )
+
     # 태스크 순서 정의
-    fetch_json_task >> json_to_csv_task >> gcs_to_bigquery_task
+    fetch_json_task >> json_to_csv_task >> gcs_to_bigquery_task >> gcs_to_bigquery_task_2
