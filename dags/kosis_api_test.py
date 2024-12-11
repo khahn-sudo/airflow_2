@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from google.cloud import storage
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
+from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
 from datetime import datetime, timedelta
 import requests
 import csv
@@ -81,6 +82,30 @@ with DAG(
         task_id='json_to_csv_and_upload',
         python_callable=json_to_csv_and_upload,
         provide_context=True,
+
+    # GCS에 있는 CSV 데이터를 BigQuery에 삽입
+    gcs_to_bigquery_task = BigQueryInsertJobOperator(
+        task_id='load_csv_to_bigquery',
+        configuration={
+            "load": {
+                "sourceUris": [f"gs://{Variable.get('gcs_bucket_csv')}/kosis_data.csv"],
+                "destinationTable": {
+                    "projectId": Variable.get("gcp_project_id"),
+                    "datasetId": Variable.get("bigquery_dataset_id"),
+                    "tableId": Variable.get("bigquery_table_id"),
+                },
+                "sourceFormat": "CSV",
+                "skipLeadingRows": 1,  # 헤더 제외
+                "writeDisposition": "WRITE_TRUNCATE",  # 기존 데이터 덮어쓰기
+                "fieldDelimiter": ",",
+                "encoding": "UTF-8",
+                "autodetect": True,  # 스키마 자동 감지 추가
+            }
+        },
+        gcp_conn_id='google_cloud_default',
+    )    
+
+
     )
 
     # 태스크 순서 정의
