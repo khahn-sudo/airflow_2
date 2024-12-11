@@ -109,7 +109,7 @@ with DAG(
         gcp_conn_id='google_cloud_default',
     )
 
-    gcs_to_bigquery_task_2 =  BigQueryExecuteQueryOperator(
+    execute_sql_query =  BigQueryExecuteQueryOperator(
         task_id='execute_sql_query',
         sql="""
         -- 2019부터 2023년까지 사고 건수 쿼리 결과를 새로운 테이블에 삽입
@@ -167,4 +167,4 @@ with DAG(
     )
 
     # 태스크 순서 정의
-    fetch_json_task >> json_to_csv_task >> gcs_to_bigquery_task >> gcs_to_bigquery_task_2
+    fetch_json_task >> json_to_csv_task >> gcs_to_bigquery_task >> execute_sql_query
