@@ -82,13 +82,14 @@ with DAG(
         task_id='json_to_csv_and_upload',
         python_callable=json_to_csv_and_upload,
         provide_context=True,
+    )
 
     # GCS에 있는 CSV 데이터를 BigQuery에 삽입
     gcs_to_bigquery_task = BigQueryInsertJobOperator(
         task_id='load_csv_to_bigquery',
         configuration={
             "load": {
-                "sourceUris": [f"gs://{Variable.get('gcs_bucket_csv')}/kosis_data.csv"],
+                "sourceUris": [f"gs://{Variable.get('gcs_bucket_csv')}/kosis_data2.csv"],
                 "destinationTable": {
                     "projectId": Variable.get("gcp_project_id"),
                     "datasetId": Variable.get("bigquery_dataset_id"),
@@ -103,9 +104,6 @@ with DAG(
             }
         },
         gcp_conn_id='google_cloud_default',
-    )    
-
-
     )
 
     # 태스크 순서 정의
