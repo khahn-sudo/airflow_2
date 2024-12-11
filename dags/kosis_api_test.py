@@ -1,22 +1,20 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from google.cloud import storage
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
-from google.auth.transport.requests import Request
-from google.oauth2 import service_account
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import csv
 from airflow.models import Variable
 
 # JSON 데이터를 API에서 가져오는 함수
 def fetch_json_data(**kwargs):
-
     api_key = Variable.get("kosis_api_key")  # Airflow Variable에서 API Key 가져오기
     url = f"https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&apiKey={api_key}&itmId=13103112873NO_ACCI+13103112873NO_DEATH+13103112873NO_WOUND+&objL1=ALL&objL2=ALL&objL3=&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y&prdSe=Y&startPrdDe=2017&endPrdDe=2023&orgId=132&tblId=DT_V_MOTA_021"
     
     response = requests.get(url)
-    response.raise_for_status()  # 요청 실패 시 예외 발생
-    data = response.json()  # JSON 데이터를 파싱
+    response.raise_for_status()
+    data = response.json()
     
     # XCom을 통해 데이터를 반환하여 후속 태스크에서 사용할 수 있게 함
     kwargs['ti'].xcom_push(key='json_data', value=data)
@@ -31,23 +29,9 @@ def json_to_csv_and_upload(**kwargs):
 
     # GCS 버킷 이름 및 파일 경로
     bucket_name = Variable.get("gcs_bucket_csv")  # GCS 버킷 이름
-    gcs_file_path = 'kosis_data.csv'
-    local_file_path = '/tmp/kosis_data.csv'
+    gcs_file_path = 'kosis_data2.csv'
+    local_file_path = '/tmp/kosis_data2.csv'
     
-    # 서비스 계정 키 파일 경로
-    service_account_file = '/opt/airflow/dags/airflow-onboarding-e866ef7ec234.json'  # 서비스 계정 파일 경로 지정
-    scopes = [
-        'https://www.googleapis.com/auth/cloud-platform',  # Cloud API 접근 권한
-    ]
-    
-    # 서비스 계정 인증을 통한 인증 객체 생성
-    credentials = service_account.Credentials.from_service_account_file(
-        service_account_file, scopes=scopes
-    )
-    
-    # 인증된 GCS Hook 사용
-    hook = GCSHook(gcp_conn_id='google_cloud_default', credentials=credentials)
-
     # JSON 데이터를 CSV로 변환
     with open(local_file_path, mode='w', newline='', encoding='utf-8-sig') as csv_file:
         csv_writer = csv.writer(csv_file)
@@ -60,13 +44,14 @@ def json_to_csv_and_upload(**kwargs):
             csv_writer.writerow(item.values())  # 값 쓰기
 
     # GCS에 업로드
+    hook = GCSHook(gcp_conn_id='google_cloud_default')
     hook.upload(bucket_name, gcs_file_path, local_file_path)
     print(f"File uploaded to GCS: gs://{bucket_name}/{gcs_file_path}")
 
 
 # 기본 DAG 설정
 default_args = {
-    'owner': 'airflow2',
+    'owner': 'airflow',
     'depends_on_past': False,
     'email_on_failure': False,
     'email_on_retry': False,
@@ -75,7 +60,7 @@ default_args = {
 
 # DAG 정의
 with DAG(
-    'kosis_api_test',  # DAG 이름
+    'kosis_upload',  # DAG 이름
     default_args=default_args,
     description='Fetch JSON data, convert to CSV, and upload to GCS',
     schedule_interval='0 0 * * *',  # 매일 0시에 실행
