@@ -107,4 +107,4 @@ with DAG(
     )
 
     # 태스크 순서 정의
-    fetch_json_task >> json_to_csv_task
+    fetch_json_task >> json_to_csv_task >> gcs_to_bigquery_task
