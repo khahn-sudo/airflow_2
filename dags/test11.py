@@ -10,12 +10,16 @@ import csv
 from airflow.models import Variable
 from requests.adapters import HTTPAdapter
 from urllib3.util.ssl_ import create_urllib3_context
+import ssl
 
 # TLS Adapter to enforce TLSv1.2
 class TLSAdapter(HTTPAdapter):
     def __init__(self, tls_version=None, **kwargs):
         self.tls_version = tls_version
-        self.context = create_urllib3_context(ssl_version=self.tls_version)
+        # SSLContext 생성, check_hostname을 False로 설정
+        self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        self.context.check_hostname = False  # 호스트네임 검증 비활성화
+        self.context.verify_mode = ssl.CERT_NONE  # 인증서 검증 비활성화
         super().__init__(**kwargs)
 
     def init_poolmanager(self, *args, **kwargs):
@@ -36,10 +40,10 @@ def fetch_json_data(**kwargs):
 
     # TLS 설정된 세션 사용
     session = requests.Session()
-    session.mount("https://", TLSAdapter(tls_version="TLSv1_2"))
+    session.mount("https://", TLSAdapter(tls_version=ssl.PROTOCOL_TLSv1_2))
 
     # API 요청
-    response = session.get(api_url, params=params, verify=False)
+    response = session.get(api_url, params=params)
     response.raise_for_status()  # 요청 실패 시 예외 발생
     data = response.json()
 
