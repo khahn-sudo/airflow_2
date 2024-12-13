@@ -39,10 +39,8 @@ def fetch_json_data(**kwargs):
     session.mount("https://", TLSAdapter(tls_version="TLSv1_2"))
 
     # API 요청
-
-    response = session.get(api_url, verify=False)
+    response = session.get(api_url, params=params, verify=False)
     response.raise_for_status()  # 요청 실패 시 예외 발생
-    response.check_hostname = False  # 호스트네임 확인 비활성화
     data = response.json()
 
     # 데이터가 없는 경우 예외 발생
