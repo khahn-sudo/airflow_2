@@ -80,7 +80,7 @@ default_args = {
 
 # DAG 정의
 with DAG(
-    'kosis_upload',  # DAG 이름
+    dag_id='test_upload',  # DAG 이름
     default_args=default_args,
     description='Fetch JSON data, convert to CSV, and upload to GCS',
     schedule_interval='0 0 * * *',  # 매일 0시에 실행
