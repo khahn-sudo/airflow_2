@@ -3,7 +3,6 @@ from airflow.operators.python import PythonOperator
 from google.cloud import storage
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
-
 from datetime import datetime
 import requests
 import csv
@@ -12,13 +11,11 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.ssl_ import create_urllib3_context
 import ssl
 
-# TLS Adapter to enforce TLSv1.2
+# SSL 인증서 검증을 비활성화하는 Custom Adapter
 class TLSAdapter(HTTPAdapter):
-    def __init__(self, tls_version=None, **kwargs):
-        self.tls_version = tls_version
-        # SSLContext 생성, check_hostname을 False로 설정
-        self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        self.context.check_hostname = False  # 호스트네임 검증 비활성화
+    def __init__(self, **kwargs):
+        self.context = ssl.create_default_context()
+        self.context.check_hostname = False  # 호스트 이름 검증 비활성화
         self.context.verify_mode = ssl.CERT_NONE  # 인증서 검증 비활성화
         super().__init__(**kwargs)
 
@@ -28,7 +25,6 @@ class TLSAdapter(HTTPAdapter):
 
 # JSON 데이터를 API에서 가져오는 함수
 def fetch_json_data(**kwargs):
-    # API URL 및 파라미터
     api_url = "https://apis.data.go.kr/1160100/service/GetFPAtmbInsujoinInfoService/getContractInfo"
     params = {
         'pageNo': 1,
@@ -40,22 +36,27 @@ def fetch_json_data(**kwargs):
 
     # TLS 설정된 세션 사용
     session = requests.Session()
-    session.mount("https://", TLSAdapter(tls_version=ssl.PROTOCOL_TLSv1_2))
+    session.mount('https://', TLSAdapter())
 
     # API 요청
-    response = session.get(api_url, params=params)
-    response.raise_for_status()  # 요청 실패 시 예외 발생
-    data = response.json()
+    try:
+        response = session.get(api_url, params=params)
+        response.raise_for_status()  # 요청 실패 시 예외 발생
+        data = response.json()
 
-    # 데이터가 없는 경우 예외 발생
-    if 'response' not in data or 'body' not in data['response'] or 'items' not in data['response']['body']:
-        raise ValueError("No valid data found in the API response.")
+        # 데이터가 없는 경우 예외 발생
+        if 'response' not in data or 'body' not in data['response'] or 'items' not in data['response']['body']:
+            raise ValueError("No valid data found in the API response.")
 
-    # 필요한 데이터 추출
-    items = data['response']['body']['items']['item']
+        # 필요한 데이터 추출
+        items = data['response']['body']['items']['item']
 
-    # XCom에 데이터 저장
-    kwargs['ti'].xcom_push(key='json_data', value=items)
+        # XCom에 데이터 저장
+        kwargs['ti'].xcom_push(key='json_data', value=items)
+
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+        raise
 
 # JSON 데이터를 CSV로 변환하고 GCS에 업로드하는 함수
 def json_to_csv_and_upload(**kwargs):
