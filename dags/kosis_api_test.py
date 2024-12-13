@@ -96,7 +96,6 @@ with DAG(
                     "projectId": Variable.get("gcp_project_id"),
                     "datasetId": Variable.get("bigquery_dataset_id"),
                     "tableId": Variable.get("bigquery_table_id_1"),
-                    "tableId": Variable.get("bigquery_table_id_2"),
                 },
                 "sourceFormat": "CSV",
                 "skipLeadingRows": 1,  # 헤더 제외
@@ -113,7 +112,7 @@ with DAG(
         task_id='execute_sql_query',
         sql="""
         -- 2019부터 2023년까지 사고 건수 쿼리 결과를 새로운 테이블에 삽입
-        CREATE TABLE `{{ var.value.gcp_project_id }}.{{ var.value.bigquery_dataset_id }}.{{ var.value.bigquery_table_id_2 }}` AS 
+        CREATE TABLE `{{ var.value.gcp_project_id }}.{{ var.value.bigquery_dataset_id }}.kosis_data_after` AS 
         WITH total_accidents AS (
             SELECT 
                 PRD_DE, 
