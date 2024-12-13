@@ -19,7 +19,8 @@ def fetch_json_data(**kwargs):
         'numOfRows': 10,  # 가져올 데이터 수
         'likeIsuCmpyOfrYm': '202307',  # 예시 연월 필터
         'isuItmsNm': '개인용',  # 아이템 이름 필터
-        'serviceKey': Variable.get("second_api_service_key"),  # Airflow Variable에서 API Key 가져오기
+        'serviceKey':'im0AFFv2NghkS%2BKEMVEZ43gFtu7hcWRSx9zCUoyu54NmI4kkvJZ2YhVMeuLT0Nisc%2B01BHFPzApF1XJgSFTbeA%3D%3D'
+        # 'serviceKey': Variable.get("second_api_service_key"),  # Airflow Variable에서 API Key 가져오기
     }
 
     # API 요청
