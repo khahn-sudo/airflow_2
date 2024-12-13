@@ -40,7 +40,7 @@ def fetch_json_data(**kwargs):
 
     # API 요청
     try:
-        response = session.get(api_url, params=params)
+        response = session.get(api_url, params=params, verify=False)
         response.raise_for_status()  # 요청 실패 시 예외 발생
         data = response.json()
 
