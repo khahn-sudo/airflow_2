@@ -24,7 +24,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id='parallel_data_processing',
+    dag_id='parallel',
     default_args=default_args,
     start_date=datetime(2023, 12, 1),
     schedule_interval=None,
