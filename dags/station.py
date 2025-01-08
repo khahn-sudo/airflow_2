@@ -21,7 +21,7 @@ with DAG(
 
     fetch_api_data = SimpleHttpOperator(
         task_id='fetch_api_data',
-        endpoint='http://www.khoa.go.kr/api/oceangrid/ObsServiceObj/search.do?ServiceKey=wldhxng34hkddbsgm81lwldhxng34hkddbsgm81l==&ResultType=xml',
+        endpoint='http://www.khoa.go.kr/api/oceangrid/ObsServiceObj/search.do?ServiceKey=wldhxng34hkddbsgm81lwldhxng34hkddbsgm81l==&ResultType=json',
         method='GET',
         response_filter=lambda response: response.text,
         log_response=True,
