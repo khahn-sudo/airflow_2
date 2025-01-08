@@ -1,16 +1,15 @@
 from airflow import DAG
+from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
-import requests
+import json
 
-def fetch_api_data():
-    url = "http://www.khoa.go.kr/api/oceangrid/ObsServiceObj/search.do?ServiceKey=wldhxng34hkddbsgm81lwldhxng34hkddbsgm81l==&ResultType=json"
-    response = requests.get(url)
-    if response.status_code == 200:
-        print("API Response:", response.text)
-        return response.text
-    else:
-        raise Exception(f"API request failed with status {response.status_code}")
+def print_api_response(**kwargs):
+    ti = kwargs['ti']
+    response = ti.xcom_pull(task_ids='fetch_api_data')
+    print("\n================ API Response ================\n")
+    print(response)
+    print("\n============================================\n")
 
 with DAG(
     dag_id='api_fetch_dag',
@@ -22,7 +21,17 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    fetch_api_task = PythonOperator(
+    fetch_api_data = SimpleHttpOperator(
         task_id='fetch_api_data',
-        python_callable=fetch_api_data,
+        endpoint='http://www.khoa.go.kr/api/oceangrid/ObsServiceObj/search.do?ServiceKey=wldhxng34hkddbsgm81lwldhxng34hkddbsgm81l==&ResultType=json',
+        method='GET',
+        response_filter=lambda response: response.text,
+        log_response=True,
     )
+
+    print_response = PythonOperator(
+        task_id='print_response',
+        python_callable=print_api_response,
+    )
+
+    fetch_api_data >> print_response
